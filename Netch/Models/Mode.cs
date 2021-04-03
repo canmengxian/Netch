@@ -1,47 +1,75 @@
-﻿using System.Collections.Generic;
+﻿using Netch.Utils;
+using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
-using Netch.Utils;
 
 namespace Netch.Models
 {
     public class Mode
     {
+        private readonly Lazy<List<string>> _lazyRule;
+
+        public string? FullName { get; private set; }
+
+        public Mode(string? fullName)
+        {
+            _lazyRule = new Lazy<List<string>>(ReadRules);
+            if (fullName == null)
+                return;
+
+            FullName = fullName;
+            if (!File.Exists(FullName))
+                return;
+
+            var text = File.ReadLines(FullName).First();
+
+            // load head
+            if (text.First() != '#')
+                throw new Exception($"mode {FullName} head not found at Line 0");
+
+            var split = text.Substring(1).SplitTrimEntries(',');
+            Remark = split[0];
+
+            var typeResult = int.TryParse(split.ElementAtOrDefault(1), out var type);
+            Type = typeResult ? type : 0;
+            if (!ModeHelper.ModeTypes.Contains(Type))
+                throw new NotSupportedException($"not support mode \"[{Type}]{Remark}\".");
+        }
+
         /// <summary>
-        ///		备注
+        ///     规则
         /// </summary>
-        public string Remark;
+        public List<string> Rule => _lazyRule.Value;
+
+        /// <summary>
+        ///     备注
+        /// </summary>
+        public string Remark { get; set; } = "";
+
+        /// <summary>
+        ///     类型
+        ///     <para />
+        ///     0. Socks5 + 进程加速
+        ///     <para />
+        ///     1. Socks5 + TUN/TAP 规则内 IP CIDR 加速
+        ///     <para />
+        ///     2. Socks5 + TUN/TAP 全局，绕过规则内 IP CIDR
+        ///     <para />
+        ///     3. Socks5 + HTTP 代理（设置到系统代理）
+        ///     <para />
+        ///     4. Socks5 代理（不设置到系统代理）
+        ///     <para />
+        ///     5. Socks5 + HTTP 代理（不设置到系统代理）
+        ///     <para />
+        /// </summary>
+        public int Type { get; set; } = 0;
 
         /// <summary>
         ///     文件相对路径(必须是存在的文件)
         /// </summary>
-        public string RelativePath;
-
-        /// <summary>
-        ///		无后缀文件名
-        /// </summary>
-        public string FileName;
-
-        /// <summary>
-        ///     类型<para />
-        ///     0. Socks5 + 进程加速<para />
-        ///     1. Socks5 + TUN/TAP 规则内 IP CIDR 加速<para />
-        ///     2. Socks5 + TUN/TAP 全局，绕过规则内 IP CIDR<para />
-        ///     3. Socks5 + HTTP 代理（设置到系统代理）<para />
-        ///     4. Socks5 代理（不设置到系统代理）<para />
-        ///     5. Socks5 + HTTP 代理（不设置到系统代理）<para />
-        /// </summary>
-        public int Type = 0;
-
-        /// <summary>
-        ///    绕过中国（0. 不绕过 1. 绕过）
-        /// </summary>
-        public bool BypassChina = false;
-
-        /// <summary>
-        ///		规则
-        /// </summary>
-        public readonly List<string> Rule = new List<string>();
+        public string? RelativePath => FullName == null ? null : ModeHelper.GetRelativePath(FullName);
 
         public List<string> FullRule
         {
@@ -52,6 +80,7 @@ namespace Netch.Models
                 {
                     if (string.IsNullOrWhiteSpace(s))
                         continue;
+
                     if (s.StartsWith("//"))
                         continue;
 
@@ -62,34 +91,21 @@ namespace Netch.Models
                         relativePath.Replace(">", "");
                         relativePath.Replace(".h", ".txt");
 
-                        var mode = Global.Modes.FirstOrDefault(m => m.RelativePath.Equals(relativePath.ToString()));
+                        var mode = Global.Modes.FirstOrDefault(m => m.FullName != null && m.RelativePath!.Equals(relativePath.ToString()));
 
                         if (mode == null)
-                        {
-                            Logging.Warning($"{relativePath} file included in {Remark} not found");
-                        }
-                        else if (mode == this)
-                        {
-                            Logging.Warning("Can't self-reference");
-                        }
-                        else
-                        {
-                            if (mode.Type != Type)
-                            {
-                                Logging.Warning($"{mode.Remark}'s mode is not as same as {Remark}'s mode");
-                            }
-                            else
-                            {
-                                if (mode.Rule.Any(rule => rule.StartsWith("#include")))
-                                {
-                                    Logging.Warning("Cannot reference mode that reference other mode");
-                                }
-                                else
-                                {
-                                    result.AddRange(mode.FullRule);
-                                }
-                            }
-                        }
+                            throw new MessageException($"{relativePath} file included in {Remark} not found");
+
+                        if (mode == this)
+                            throw new MessageException("Can't self-reference");
+
+                        if (mode.Type != Type)
+                            throw new MessageException($"{mode.Remark}'s mode is not as same as {Remark}'s mode");
+
+                        if (mode.Rule.Any(rule => rule.StartsWith("#include")))
+                            throw new Exception("Cannot reference mode that reference other mode");
+
+                        result.AddRange(mode.FullRule);
                     }
                     else
                     {
@@ -101,9 +117,29 @@ namespace Netch.Models
             }
         }
 
+        private List<string> ReadRules()
+        {
+            if (FullName == null || !File.Exists(FullName))
+                return new List<string>();
+
+            return File.ReadLines(FullName!).Skip(1).ToList();
+        }
+
+        public void WriteFile(string? fullName = null)
+        {
+            if (fullName != null)
+                throw new NotImplementedException();
+
+            var dir = Path.GetDirectoryName(FullName)!;
+            if (!Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+
+            // 写入到模式文件里
+            File.WriteAllText(FullName!, ToFileString());
+        }
 
         /// <summary>
-        ///		获取备注
+        ///     获取备注
         /// </summary>
         /// <returns>备注</returns>
         public override string ToString()
@@ -112,20 +148,21 @@ namespace Netch.Models
         }
 
         /// <summary>
-        ///		获取模式文件字符串
+        ///     获取模式文件字符串
         /// </summary>
         /// <returns>模式文件字符串</returns>
         public string ToFileString()
         {
-            return $"# {Remark}, {Type}, {(BypassChina ? 1 : 0)}{Global.EOF}{string.Join(Global.EOF, Rule)}";
+            return $"# {Remark}, {Type}{Constants.EOF}{string.Join(Constants.EOF, Rule)}";
         }
     }
+
     public static class ModeExtension
     {
-        ///     是否会转发 UDP
-        public static bool TestNatRequired(this Mode mode) => mode.Type is 0 or 1 or 2;
-
-        ///     Socks5 分流是否能被有效实施
-        public static bool ClientRouting(this Mode mode) => mode.Type is not (1 or 2);
+        /// 是否会转发 UDP
+        public static bool TestNatRequired(this Mode mode)
+        {
+            return mode.Type is 0 or 2;
+        }
     }
 }

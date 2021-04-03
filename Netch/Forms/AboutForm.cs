@@ -1,7 +1,8 @@
-﻿using System;
+﻿using Netch.Properties;
+using Netch.Utils;
+using System;
 using System.Diagnostics;
 using System.Windows.Forms;
-using Netch.Utils;
 
 namespace Netch.Forms
 {
@@ -10,6 +11,7 @@ namespace Netch.Forms
         public AboutForm()
         {
             InitializeComponent();
+            Icon = Resources.icon;
         }
 
         private void AboutForm_Load(object sender, EventArgs e)

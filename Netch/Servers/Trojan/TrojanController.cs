@@ -1,29 +1,29 @@
-﻿using System.Collections.Generic;
-using System.IO;
-using Netch.Controllers;
+﻿using Netch.Controllers;
 using Netch.Models;
 using Netch.Servers.Trojan.Models;
-using Newtonsoft.Json;
+using System.Collections.Generic;
+using System.IO;
+using System.Text.Json;
 
 namespace Netch.Servers.Trojan
 {
     public class TrojanController : Guard, IServerController
     {
-        public TrojanController()
-        {
-            StartedKeywords.Add("started");
-            StoppedKeywords.Add("exiting");
-        }
-
         public override string MainFile { get; protected set; } = "Trojan.exe";
-        public override string Name { get; protected set; } = "Trojan";
+
+        protected override IEnumerable<string> StartedKeywords { get; set; } = new[] { "started" };
+
+        protected override IEnumerable<string> StoppedKeywords { get; set; } = new[] { "exiting" };
+
+        public override string Name { get; } = "Trojan";
+
         public ushort? Socks5LocalPort { get; set; }
-        public string LocalAddress { get; set; }
 
+        public string? LocalAddress { get; set; }
 
-        public bool Start(in Server s, in Mode mode)
+        public void Start(in Server s, in Mode mode)
         {
-            var server = (Trojan) s;
+            var server = (Trojan)s;
             var trojanConfig = new TrojanConfig
             {
                 local_addr = this.LocalAddress(),
@@ -39,11 +39,9 @@ namespace Netch.Servers.Trojan
             if (!string.IsNullOrWhiteSpace(server.Host))
                 trojanConfig.ssl.sni = server.Host;
 
-            File.WriteAllText("data\\last.json", JsonConvert.SerializeObject(trojanConfig, Formatting.Indented, new JsonSerializerSettings
-            {
-                NullValueHandling = NullValueHandling.Ignore
-            }));
-            return StartInstanceAuto("-c ..\\data\\last.json");
+            File.WriteAllBytes("data\\last.json", JsonSerializer.SerializeToUtf8Bytes(trojanConfig, Global.NewDefaultJsonSerializerOptions));
+
+            StartInstanceAuto("-c ..\\data\\last.json");
         }
 
         public override void Stop()

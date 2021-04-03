@@ -1,40 +1,29 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.Net.Sockets;
+using System.Runtime.InteropServices;
 
 namespace Netch
 {
     public static class NativeMethods
     {
-        /// <summary>
-        ///		创建路由规则
-        /// </summary>
-        /// <param name="address">目标地址</param>
-        /// <param name="cidr">CIDR</param>
-        /// <param name="gateway">网关地址</param>
-        /// <param name="index">适配器索引</param>
-        /// <param name="metric">跃点数</param>
-        /// <returns>是否成功</returns>
-        [DllImport("RouteHelper.bin", CallingConvention = CallingConvention.Cdecl, EntryPoint = "CreateRoute")]
-        public static extern bool CreateRoute(string address, int cidr, string gateway, int index, int metric = 0);
-
-        /// <summary>
-        ///		删除路由规则
-        /// </summary>
-        /// <param name="address">目标地址</param>
-        /// <param name="cidr">掩码地址</param>
-        /// <param name="gateway">网关地址</param>
-        /// <param name="index">适配器索引</param>
-        /// <param name="metric">跃点数</param>
-        /// <returns>是否成功</returns>
-        [DllImport("RouteHelper.bin", CallingConvention = CallingConvention.Cdecl, EntryPoint = "DeleteRoute")]
-        public static extern bool DeleteRoute(string address, int cidr, string gateway, int index, int metric = 0);
-
         [DllImport("dnsapi", EntryPoint = "DnsFlushResolverCache")]
-        public static extern uint FlushDNSResolverCache();
+        public static extern uint RefreshDNSCache();
 
-        [DllImport("kernel32.dll")]
-        public static extern bool AllocConsole();
+        [DllImport("RouteHelper.bin", CallingConvention = CallingConvention.Cdecl)]
+        public static extern ulong ConvertLuidToIndex(ulong id);
 
-        [DllImport("kernel32.dll")]
-        public static extern bool AttachConsole(int dwProcessId);
+        [DllImport("RouteHelper.bin", CallingConvention = CallingConvention.Cdecl)]
+        public static extern bool CreateIPv4(string address, string netmask, ulong index);
+
+        [DllImport("RouteHelper.bin", CallingConvention = CallingConvention.Cdecl)]
+        public static extern bool CreateUnicastIP(AddressFamily inet, string address, byte cidr, ulong index);
+
+        [DllImport("RouteHelper.bin", CallingConvention = CallingConvention.Cdecl)]
+        public static extern bool RefreshIPTable(AddressFamily inet, ulong index);
+
+        [DllImport("RouteHelper.bin", CallingConvention = CallingConvention.Cdecl)]
+        public static extern bool CreateRoute(AddressFamily inet, string address, byte cidr, string gateway, ulong index, int metric);
+
+        [DllImport("RouteHelper.bin", CallingConvention = CallingConvention.Cdecl)]
+        public static extern bool DeleteRoute(AddressFamily inet, string address, byte cidr, string gateway, ulong index, int metric);
     }
 }
